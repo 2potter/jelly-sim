@@ -103,9 +103,9 @@ Config.Zones = {
 		PathColor = C(255, 230, 240),
 		Decor = { C(255, 150, 200), C(255, 220, 120), C(170, 230, 255) },
 		Blobs = {
-			{ Name = "Jelly Drop", Style = "Drop", Health = 5, Reward = 2, Size = 2.6, Color = C(255, 120, 190), Chance = 80 },
-			{ Name = "Jelly Pudding", Style = "Pudding", Health = 25, Reward = 12, Size = 4, Color = C(255, 90, 170), Chance = 18 },
-			{ Name = "Giant Pudding", Style = "Giant", Health = 150, Reward = 90, Size = 7, Color = C(240, 60, 150), Chance = 2 },
+			{ Name = "Jelly Cube", Style = "Drop", Health = 5, Reward = 2, Size = 2.6, Color = C(255, 120, 190), Chance = 80 },
+			{ Name = "Big Jelly Cube", Style = "Pudding", Health = 25, Reward = 12, Size = 4, Color = C(255, 90, 170), Chance = 18 },
+			{ Name = "Giant Jelly Cube", Style = "Giant", Health = 150, Reward = 90, Size = 7, Color = C(240, 60, 150), Chance = 2 },
 		},
 	},
 	{
@@ -115,9 +115,9 @@ Config.Zones = {
 		PathColor = C(200, 235, 255),
 		Decor = { C(140, 110, 255), C(90, 200, 255), C(255, 160, 220) },
 		Blobs = {
-			{ Name = "Berry Drop", Style = "Drop", Health = 30, Reward = 15, Size = 2.6, Color = C(140, 100, 255), Chance = 80 },
-			{ Name = "Berry Pudding", Style = "Pudding", Health = 150, Reward = 80, Size = 4, Color = C(110, 80, 240), Chance = 18 },
-			{ Name = "Giant Berry Pudding", Style = "Giant", Health = 900, Reward = 550, Size = 7, Color = C(80, 60, 220), Chance = 2 },
+			{ Name = "Berry Cube", Style = "Drop", Health = 30, Reward = 15, Size = 2.6, Color = C(140, 100, 255), Chance = 80 },
+			{ Name = "Big Berry Cube", Style = "Pudding", Health = 150, Reward = 80, Size = 4, Color = C(110, 80, 240), Chance = 18 },
+			{ Name = "Giant Berry Cube", Style = "Giant", Health = 900, Reward = 550, Size = 7, Color = C(80, 60, 220), Chance = 2 },
 		},
 	},
 	{
@@ -127,9 +127,9 @@ Config.Zones = {
 		PathColor = C(255, 170, 90),
 		Decor = { C(170, 255, 80), C(255, 120, 60), C(255, 220, 90) },
 		Blobs = {
-			{ Name = "Lime Drop", Style = "Drop", Health = 200, Reward = 100, Size = 2.6, Color = C(170, 255, 70), Chance = 80 },
-			{ Name = "Lime Pudding", Style = "Pudding", Health = 1000, Reward = 550, Size = 4, Color = C(120, 235, 40), Chance = 18 },
-			{ Name = "Giant Lime Pudding", Style = "Giant", Health = 6000, Reward = 4000, Size = 7, Color = C(80, 210, 20), Chance = 2 },
+			{ Name = "Lime Cube", Style = "Drop", Health = 200, Reward = 100, Size = 2.6, Color = C(170, 255, 70), Chance = 80 },
+			{ Name = "Big Lime Cube", Style = "Pudding", Health = 1000, Reward = 550, Size = 4, Color = C(120, 235, 40), Chance = 18 },
+			{ Name = "Giant Lime Cube", Style = "Giant", Health = 6000, Reward = 4000, Size = 7, Color = C(80, 210, 20), Chance = 2 },
 		},
 	},
 }

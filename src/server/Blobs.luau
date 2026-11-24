@@ -9,7 +9,6 @@ local TweenService = game:GetService("TweenService")
 
 local Config = require(ReplicatedStorage.Shared.Config)
 local Format = require(ReplicatedStorage.Shared.Format)
-local PetModels = require(ReplicatedStorage.Shared.PetModels)
 local PlayerData = require(script.Parent.PlayerData)
 local Remotes = require(script.Parent.Remotes)
 local WorldBuilder = require(script.Parent.WorldBuilder)
@@ -75,66 +74,123 @@ local function makeHealthBar(blob: Part, title: string, color: Color3)
 	gui.Parent = blob
 end
 
--- Makes the jelly you see. Everything is welded to the invisible hitbox.
-local function buildLook(hitbox: Part, info)
-	local size = info.Size
-	local model: Model
+-- How tall a jelly cube is compared to how wide it is (jelly sags a little).
+local CUBE_HEIGHT = 0.85
 
-	if info.Style == "Drop" then
-		-- a squishy jelly gumdrop
-		model = Instance.new("Model")
-		local function piece(name: string, partSize: Vector3, offsetY: number, color: Color3, material: Enum.Material, transparency: number)
-			local part = Instance.new("Part")
-			part.Name = name
-			part.Size = partSize
-			part.Color = color
-			part.Material = material
-			part.Transparency = transparency
-			part.CanCollide = false
-			part.CanQuery = false
-			part.CanTouch = false
-			part.CastShadow = false
-			part.CFrame = CFrame.new(0, offsetY, 0)
-			local mesh = Instance.new("SpecialMesh")
-			mesh.MeshType = Enum.MeshType.Sphere
-			mesh.Parent = part
-			part.Parent = model
-			return part
+local function cubePart(model: Model, name: string, shape: Enum.PartType, size: Vector3, cframe: CFrame, color: Color3, material: Enum.Material, transparency: number, castShadow: boolean?): Part
+	local part = Instance.new("Part")
+	part.Name = name
+	part.Shape = shape -- set before Size so Roblox doesn't resize it
+	part.Size = size
+	part.CFrame = cframe
+	part.Color = color
+	part.Material = material
+	part.Transparency = transparency
+	part.CanCollide = false
+	part.CanQuery = false
+	part.CanTouch = false
+	part.CastShadow = castShadow == true
+	part.TopSurface = Enum.SurfaceType.Smooth
+	part.BottomSurface = Enum.SurfaceType.Smooth
+	part.Parent = model
+	return part
+end
+
+-- Builds a wobbly see-through jelly cube with rounded edges.
+-- The model's center is the middle of the cube.
+local function buildJellyCube(info): Model
+	local model = Instance.new("Model")
+	local w = info.Size
+	local h = info.Size * CUBE_HEIGHT
+	local r = w * 0.16 -- how round the edges are
+	local hw, hh = w / 2, h / 2
+	local color = info.Color
+	local GLASS = Enum.Material.Glass
+	local NEON = Enum.Material.Neon
+	local BALL = Enum.PartType.Ball
+	local BLOCK = Enum.PartType.Block
+	local CYLINDER = Enum.PartType.Cylinder
+	local jellyT = 0.42 -- see-through, like real jelly
+
+	-- rounded box: three overlapping slabs, plus round edges and corners on the top half.
+	-- (where slabs overlap, the jelly looks thicker and darker, just like real jelly)
+	local core = cubePart(model, "Jelly", BLOCK, Vector3.new(w - r * 2, h - r * 2, w - r * 2), CFrame.new(), color, GLASS, jellyT, true)
+	cubePart(model, "SlabX", BLOCK, Vector3.new(w, h - r * 2, w - r * 2), CFrame.new(), color, GLASS, jellyT)
+	cubePart(model, "SlabZ", BLOCK, Vector3.new(w - r * 2, h - r * 2, w), CFrame.new(), color, GLASS, jellyT)
+	cubePart(model, "SlabY", BLOCK, Vector3.new(w - r * 2, h, w - r * 2), CFrame.new(), color:Lerp(Color3.new(1, 1, 1), 0.08), GLASS, jellyT)
+	-- the 4 standing edges
+	for _, corner in { { 1, 1 }, { 1, -1 }, { -1, 1 }, { -1, -1 } } do
+		local x, z = corner[1] * (hw - r), corner[2] * (hw - r)
+		cubePart(model, "Edge", CYLINDER, Vector3.new(h - r * 2, r * 2, r * 2), CFrame.new(x, 0, z) * CFrame.Angles(0, 0, math.rad(90)), color, GLASS, jellyT)
+		cubePart(model, "Corner", BALL, Vector3.new(r * 2, r * 2, r * 2), CFrame.new(x, hh - r, z), color, GLASS, jellyT)
+		cubePart(model, "BottomCorner", BALL, Vector3.new(r * 2, r * 2, r * 2), CFrame.new(x, -hh + r, z), color, GLASS, jellyT)
+	end
+	-- the 4 top edges and 4 bottom edges
+	for _, y in { hh - r, -hh + r } do
+		for _, side in { 1, -1 } do
+			cubePart(model, "Edge", CYLINDER, Vector3.new(w - r * 2, r * 2, r * 2), CFrame.new(0, y, side * (hw - r)), color, GLASS, jellyT)
+			cubePart(model, "Edge", CYLINDER, Vector3.new(w - r * 2, r * 2, r * 2), CFrame.new(side * (hw - r), y, 0) * CFrame.Angles(0, math.rad(90), 0), color, GLASS, jellyT)
 		end
-		local base = piece("Jelly", Vector3.new(size, size * 0.7, size), -size * 0.15, info.Color, Enum.Material.Glass, 0.25)
-		piece("JellyTop", Vector3.new(size * 0.6, size * 0.55, size * 0.6), size * 0.2, info.Color, Enum.Material.Glass, 0.25)
-		local shine = piece("Shine", Vector3.new(size * 0.12, size * 0.3, size * 0.06), 0, Color3.new(1, 1, 1), Enum.Material.Neon, 0.35)
-		shine.CFrame = CFrame.new(-size * 0.28, size * 0.05, -size * 0.38) * CFrame.Angles(0, math.rad(-35), math.rad(15))
-		model.PrimaryPart = base
-	else
-		-- a pudding! Giant ones get cream and a cherry
-		local isGiant = info.Style == "Giant"
-		model = PetModels.Pudding({
-			Color = info.Color,
-			Cream = if isGiant then Color3.fromRGB(255, 250, 245) else nil,
-			Topping = if isGiant then "Cherry" else nil,
-			Stars = isGiant,
-			Scale = size / 3.4,
-			Transparency = 0.25,
-		})
 	end
 
-	-- line the jelly up with the hitbox, then weld it on
+	-- a deeper, darker heart in the middle (real jelly looks darker where it's thick)
+	cubePart(model, "Heart", BLOCK, Vector3.new(w * 0.5, h * 0.45, w * 0.5), CFrame.new(0, -h * 0.05, 0), color:Lerp(Color3.new(0, 0, 0), 0.35), GLASS, 0.3)
+
+	-- tiny air bubbles trapped inside
+	local bubbleSpots = { { 0.22, 0.15, -0.18 }, { -0.25, -0.2, 0.1 }, { 0.05, 0.28, 0.25 }, { -0.12, 0.05, -0.3 } }
+	for _, spot in bubbleSpots do
+		local size = w * random:NextNumber(0.04, 0.07)
+		cubePart(model, "Bubble", BALL, Vector3.new(size, size, size), CFrame.new(spot[1] * w, spot[2] * h, spot[3] * w), Color3.new(1, 1, 1), GLASS, 0.5)
+	end
+
+	-- bright shiny highlights, like light bouncing off wet jelly
+	cubePart(model, "Shine", BLOCK, Vector3.new(w * 0.55, w * 0.035, w * 0.035), CFrame.new(-w * 0.05, hh - r * 0.35, -hw + r * 0.35), Color3.new(1, 1, 1), NEON, 0.25)
+	cubePart(model, "Shine", BLOCK, Vector3.new(w * 0.035, h * 0.45, w * 0.035), CFrame.new(-hw + r * 0.3, h * 0.05, -hw + r * 0.3), Color3.new(1, 1, 1), NEON, 0.35)
+	cubePart(model, "ShineSpot", BALL, Vector3.new(w * 0.09, w * 0.09, w * 0.09), CFrame.new(-w * 0.22, hh, -w * 0.12), Color3.new(1, 1, 1), NEON, 0.2)
+
+	-- big ones get whipped cream and a cherry on top
+	if info.Style == "Giant" then
+		local cream = Color3.fromRGB(255, 250, 245)
+		for i = 1, 6 do
+			local angle = i / 6 * math.pi * 2
+			cubePart(model, "Cream", BALL, Vector3.new(w * 0.16, w * 0.16, w * 0.16), CFrame.new(math.sin(angle) * w * 0.15, hh + w * 0.04, math.cos(angle) * w * 0.15), cream, Enum.Material.SmoothPlastic, 0)
+		end
+		cubePart(model, "Cream", BALL, Vector3.new(w * 0.22, w * 0.22, w * 0.22), CFrame.new(0, hh + w * 0.1, 0), cream, Enum.Material.SmoothPlastic, 0)
+		cubePart(model, "Cherry", BALL, Vector3.new(w * 0.14, w * 0.14, w * 0.14), CFrame.new(0, hh + w * 0.24, 0), Color3.fromRGB(235, 35, 65), GLASS, 0.05)
+	end
+
+	-- soft shadow on the ground under the cube
+	cubePart(model, "Shadow", CYLINDER, Vector3.new(0.05, w * 1.25, w * 1.25), CFrame.new(0, -hh + 0.03, 0) * CFrame.Angles(0, 0, math.rad(90)), Color3.new(0, 0, 0), Enum.Material.SmoothPlastic, 0.7)
+
+	model.PrimaryPart = core
+	return model
+end
+
+-- How tall the clickable box around a blob should be.
+local function blobHeight(info): number
+	local height = info.Size * CUBE_HEIGHT
+	if info.Style == "Giant" then
+		height += info.Size * 0.3 -- room for the cream and cherry
+	end
+	return height
+end
+
+-- Makes the jelly you see. Everything is welded to the invisible hitbox.
+local function buildLook(hitbox: Part, info)
+	local model = buildJellyCube(info)
+
+	-- sit the cube on the ground at the bottom of the hitbox, turned a random way
 	local hitboxBottom = hitbox.Position.Y - hitbox.Size.Y / 2
-	local modelBottom = if info.Style == "Drop" then -size * 0.35 else -1.2 * size / 3.4 -- how far below its center the jelly reaches
-	model:PivotTo(CFrame.new(hitbox.Position.X, hitboxBottom - modelBottom, hitbox.Position.Z) * CFrame.Angles(0, random:NextNumber(0, math.pi * 2), 0))
+	local cubeCenterY = hitboxBottom + info.Size * CUBE_HEIGHT / 2
+	model:PivotTo(CFrame.new(hitbox.Position.X, cubeCenterY, hitbox.Position.Z) * CFrame.Angles(0, random:NextNumber(0, math.pi * 2), 0))
 	for _, part in model:GetDescendants() do
 		if part:IsA("BasePart") then
 			part.Anchored = false
 			part.Massless = true
-			local weld = part:FindFirstChildOfClass("WeldConstraint")
-			if weld then
-				weld:Destroy()
-			end
-			local newWeld = Instance.new("WeldConstraint")
-			newWeld.Part0 = hitbox
-			newWeld.Part1 = part
-			newWeld.Parent = part
+			local weld = Instance.new("WeldConstraint")
+			weld.Part0 = hitbox
+			weld.Part1 = part
+			weld.Parent = part
 			part.Parent = hitbox
 		end
 	end
@@ -147,7 +203,7 @@ local function spawnBlob(zoneIndex: number, onClicked: (Player, BasePart) -> ())
 	local size = info.Size
 
 	-- the invisible box you click on (and that pets attack)
-	local hitboxHeight = if info.Style == "Giant" then size * 1.05 else size * 0.85
+	local hitboxHeight = blobHeight(info)
 	local blob = Instance.new("Part")
 	blob.Name = info.Name
 	blob.Size = Vector3.new(size * 1.1, hitboxHeight, size * 1.1)
