@@ -23,9 +23,9 @@ local RunService = game:GetService("RunService")
 local Config = require(ReplicatedStorage.Shared.Config)
 local PetModels = require(ReplicatedStorage.Shared.PetModels)
 
-local PET_SCALE = 1.25 -- how big pets are
-local SPACING = 4.4 -- space between pets walking behind you
-local FOLLOW_DISTANCE = 6.5 -- how far behind you they walk
+local PET_SCALE = 0.85 -- how big pets are (about knee-to-waist high on your avatar)
+local SPACING = 3.4 -- space between pets walking behind you
+local FOLLOW_DISTANCE = 5 -- how far behind you they walk
 local RUN_SPEED = 36 -- fastest a pet can move (studs per second)
 local SMOOTHING = 7 -- how quickly pets speed up and slow down (lower = smoother)
 local WADDLE_HEIGHT = 0.25 -- how much pets bob while walking
