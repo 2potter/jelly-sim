@@ -26,8 +26,7 @@ export type PuddingOptions = {
 	Cream: Color3?, -- nil = no cream
 	Topping: string?, -- "Cherry", "Berry", "Lemon", "Bean", "Star", "Crown"
 	Stars: boolean?, -- glitter stars inside
-	Face: boolean?, -- eyes, mouth and blush made of parts (shows in menus)
-	DrawnFace: boolean?, -- eyes, mouth and blush drawn with a SurfaceGui (crisper, used in the world)
+	Face: boolean?, -- eyes, mouth and blush, stuck onto the jelly's curved surface
 	Rarity: string?, -- adds glow, sparkles and a halo for rare ones
 	Scale: number?, -- 1 = pet size (about 3 studs tall)
 	Transparency: number?,
@@ -116,76 +115,28 @@ local function addTopping(model: Model, kind: string, s: number, y: number)
 	end
 end
 
--- The face sits on a smooth egg-shaped bump on the front of the jelly.
--- These numbers describe that bump (at Scale 1).
-local FACE_Y = 0.3 -- height of the bump's center
-local PLATE_Z = -1.2 -- how far forward its center is
-local PLATE_A, PLATE_B, PLATE_C = 1.1, 1.0, 0.3 -- half its width, height and depth (flat-ish, so the face lies on it)
-
--- How far forward the bump's surface is at a spot (x, y) on the front.
-local function surfaceZ(x: number, y: number): number
-	local inside = 1 - (x / PLATE_A) ^ 2 - ((y - FACE_Y) / PLATE_B) ^ 2
-	return PLATE_Z - PLATE_C * math.sqrt(math.max(inside, 0))
-end
-
--- Draws the face (eyes, blush, ω mouth) on the front of a flat part.
-local function drawFace(canvas: BasePart)
-	local gui = Instance.new("SurfaceGui")
-	gui.Name = "Face"
-	gui.Face = Enum.NormalId.Front
-	gui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerUnit
-	gui.PixelsPerUnit = 100
-	gui.LightInfluence = 0.3
-	gui.Parent = canvas
-
-	local function shape(name: string, x: number, y: number, w: number, h: number, color: Color3, transparency: number?): Frame
-		local frame = Instance.new("Frame")
-		frame.Name = name
-		frame.AnchorPoint = Vector2.new(0.5, 0.5)
-		frame.Position = UDim2.fromScale(x, y)
-		frame.Size = UDim2.fromScale(w, h)
-		frame.BackgroundColor3 = color
-		frame.BackgroundTransparency = transparency or 0
-		frame.BorderSizePixel = 0
-		local corner = Instance.new("UICorner")
-		corner.CornerRadius = UDim.new(0.5, 0)
-		corner.Parent = frame
-		frame.Parent = gui
-		return frame
+-- Finds where a straight line first touches a stretched ball (an ellipsoid part).
+-- Returns how far along the line the hit is, and the direction straight out of the surface there.
+local function hitEllipsoid(origin: Vector3, direction: Vector3, cframe: CFrame, size: Vector3): (number?, Vector3?)
+	local turnOnly = cframe - cframe.Position
+	local half = size / 2
+	-- move the line into the ball's own space, squashed so the ball becomes a sphere of size 1
+	local localOrigin = cframe:ToObjectSpace(CFrame.new(origin)).Position / half
+	local localDirection = turnOnly:ToObjectSpace(CFrame.new(direction)).Position / half
+	local a = localDirection:Dot(localDirection)
+	local b = 2 * localOrigin:Dot(localDirection)
+	local c = localOrigin:Dot(localOrigin) - 1
+	local d = b * b - 4 * a * c
+	if d < 0 then
+		return nil, nil
 	end
-
-	for _, x in { 0.27, 0.73 } do
-		local eye = shape("Eye", x, 0.3, 0.15, 0.26, BLACK)
-		local shine = shape("Shine", 0.35, 0.3, 0.35, 0.3, WHITE)
-		shine.Parent = eye
-		shape("Blush", x + (x - 0.5) * 0.75, 0.55, 0.2, 0.1, Color3.fromRGB(255, 110, 150), 0.35)
+	local t = (-b - math.sqrt(d)) / (2 * a)
+	if t < 0 then
+		return nil, nil
 	end
-
-	-- the "ω" mouth: two little "u" cups side by side
-	for _, x in { 0.445, 0.555 } do
-		local holder = Instance.new("Frame")
-		holder.Name = "MouthHalf"
-		holder.AnchorPoint = Vector2.new(0.5, 0)
-		holder.Position = UDim2.fromScale(x, 0.52)
-		holder.Size = UDim2.fromScale(0.12, 0.09)
-		holder.BackgroundTransparency = 1
-		holder.ClipsDescendants = true -- only the bottom half of the ring shows
-		holder.Parent = gui
-
-		local ring = Instance.new("Frame")
-		ring.AnchorPoint = Vector2.new(0.5, 0.5)
-		ring.Position = UDim2.fromScale(0.5, 0)
-		ring.Size = UDim2.new(1, -4, 2, -4)
-		ring.BackgroundTransparency = 1
-		ring.Parent = holder
-		local corner = Instance.new("UICorner")
-		corner.CornerRadius = UDim.new(0.5, 0)
-		corner.Parent = ring
-		local stroke = Instance.new("UIStroke")
-		stroke.Color = BLACK
-		stroke.Thickness = 3
-		stroke.Parent = ring
-	end
+	local onSphere = localOrigin + localDirection * t
+	local localNormal = onSphere / half -- stretch back out
+	return t, (turnOnly * localNormal).Unit
 end
 
 -- Builds a jelly pudding. Used for pets (with a face) and for the big jelly blobs.
@@ -206,8 +157,23 @@ function PetModels.Pudding(options: PuddingOptions): Model
 		return Vector3.new(x, y, z) * s
 	end
 
+	-- every jelly shape is remembered, so the face can be stuck onto the real curved surface
+	local shapes: { { CFrame: CFrame, Size: Vector3 } } = {}
+	local function jelly(name: string, size: Vector3, color: Color3, cframe: CFrame, transparency: number): Part
+		table.insert(shapes, { CFrame = cframe, Size = size })
+		return blob(model, name, size, color, cframe, jellyMaterial, transparency)
+	end
+
+	-- slightly darker and lighter versions of a color, for soft shading
+	local function shade(color: Color3, amount: number): Color3
+		if amount > 0 then
+			return color:Lerp(WHITE, amount)
+		end
+		return color:Lerp(Color3.new(0, 0, 0), -amount)
+	end
+
 	-- the jelly core
-	local body = blob(model, "Body", v(2.6, 2.3, 2.6), options.Color, CFrame.new(), jellyMaterial, if options.Opaque then 0 else jellyT + 0.05)
+	local body = jelly("Body", v(2.6, 2.3, 2.6), options.Color, CFrame.new(), if options.Opaque then 0 else jellyT + 0.05)
 	model.PrimaryPart = body
 
 	-- ridges going up the sides, leaning in at the top like a pudding mold,
@@ -217,20 +183,45 @@ function PetModels.Pudding(options: PuddingOptions): Model
 		local angle = (i - 0.5) / ridges * math.pi * 2
 		local dir = Vector3.new(math.sin(angle), 0, -math.cos(angle))
 		local color = colors[(i - 1) % #colors + 1]
+		if #colors == 1 and i % 2 == 0 then
+			color = shade(color, -0.05) -- every other ridge a touch darker, so the ridges stand out
+		end
 
 		local ridgePos = dir * 1.05 * s + Vector3.new(0, -0.05 * s, 0)
-		blob(model, "Ridge", v(0.95, 2.3, 0.95), color, CFrame.lookAt(ridgePos, ridgePos + dir) * CFrame.Angles(math.rad(12), 0, 0), jellyMaterial, jellyT)
+		jelly("Ridge", v(0.95, 2.3, 0.95), color, CFrame.lookAt(ridgePos, ridgePos + dir) * CFrame.Angles(math.rad(12), 0, 0), jellyT)
 
+		-- the bottom edge is a little darker, like a soft shadow
 		local skirtPos = dir * 1.38 * s + Vector3.new(0, -0.85 * s, 0)
-		blob(model, "Skirt", v(1.15, 0.7, 1), color, CFrame.lookAt(skirtPos, skirtPos + dir), jellyMaterial, jellyT)
+		jelly("Skirt", v(1.15, 0.7, 1), shade(color, -0.12), CFrame.lookAt(skirtPos, skirtPos + dir), jellyT)
 	end
 
-	-- the flat-ish top of the jelly
-	blob(model, "Top", v(1.9, 0.7, 1.9), colors[1], at(0, 1.05, 0), jellyMaterial, jellyT)
+	-- the flat-ish top of the jelly catches the light, so it's a little lighter
+	jelly("Top", v(1.9, 0.7, 1.9), shade(colors[1], 0.15), at(0, 1.05, 0), jellyT)
 
-	-- shiny reflections make it look wet and squishy
-	blob(model, "Shine", v(0.28, 0.9, 0.12), WHITE, at(-1.0, 0.65, -1.25) * CFrame.Angles(0, math.rad(-40), math.rad(12)), NEON, 0.35)
-	blob(model, "Shine2", v(0.18, 0.18, 0.1), WHITE, at(0.85, 0.85, -1.22), NEON, 0.3)
+	-- Puts a small flat thing right onto the jelly's curved surface at a spot on the front.
+	-- (x, y) is where you'd see it looking at the pet's face; it hugs the jelly there.
+	local function onJelly(name: string, size: Vector3, color: Color3, x: number, y: number, material: Enum.Material?, transparency: number?, spin: number?)
+		local origin = Vector3.new(x * s, y * s, -5 * s)
+		local direction = Vector3.new(0, 0, 1)
+		local bestT, bestNormal = math.huge, nil
+		for _, jellyShape in shapes do
+			local t, normal = hitEllipsoid(origin, direction, jellyShape.CFrame, jellyShape.Size)
+			if t and t < bestT then
+				bestT, bestNormal = t, normal
+			end
+		end
+		if not bestNormal then
+			return
+		end
+		local point = origin + direction * bestT
+		-- face the part along the surface, half sunk in, so it looks painted on
+		local cframe = CFrame.lookAt(point, point - bestNormal) * CFrame.Angles(0, 0, spin or 0)
+		blob(model, name, size * s, color, cframe, material, transparency)
+	end
+
+	-- shiny highlights make it look glossy
+	onJelly("Shine", Vector3.new(0.22, 0.75, 0.06), WHITE, -0.95, 0.55, NEON, 0.3, math.rad(-12))
+	onJelly("Shine2", Vector3.new(0.14, 0.14, 0.05), WHITE, -0.82, 1.02, NEON, 0.3)
 
 	-- whipped cream swirl
 	local toppingY = 1.45
@@ -266,36 +257,17 @@ function PetModels.Pudding(options: PuddingOptions): Model
 		end
 	end
 
-	-- the cute face: dot eyes, blush and an "ω" mouth
-	if options.Face or options.DrawnFace then
-		-- a smooth jelly bump on the front, so the face sits on a smooth surface
-		blob(model, "FacePlate", v(PLATE_A * 2, PLATE_B * 2, PLATE_C * 2), colors[1], at(0, FACE_Y, PLATE_Z), jellyMaterial, jellyT)
-
-		if options.DrawnFace then
-			-- drawn on a flat see-through sheet stuck to the front (looks crisp in the game)
-			local canvas = block(model, "FaceCanvas", v(1.6, 1.2, 0.05), WHITE, at(0, FACE_Y + 0.05, surfaceZ(0, FACE_Y) - 0.005))
-			canvas.Transparency = 1
-			drawFace(canvas)
-		else
-			-- built from tiny parts that sit right on the surface (works inside menus too)
-			local function onSurface(name: string, size: Vector3, color: Color3, x: number, y: number, material: Enum.Material?, transparency: number?)
-				local z = surfaceZ(x, y)
-				local point = Vector3.new(x, y, z)
-				-- the direction straight out of the bump at this spot
-				local normal = Vector3.new(x / PLATE_A ^ 2, (y - FACE_Y) / PLATE_B ^ 2, (z - PLATE_Z) / PLATE_C ^ 2).Unit
-				local cframe = CFrame.lookAt(point * s, point * s - normal) -- flat side lies on the jelly
-				blob(model, name, size * s, color, cframe, material, transparency)
-			end
-			for _, side in { -1, 1 } do
-				onSurface("Eye", Vector3.new(0.22, 0.28, 0.06), BLACK, side * 0.38, 0.5)
-				onSurface("EyeShine", Vector3.new(0.08, 0.08, 0.07), WHITE, side * 0.38 - 0.05, 0.57, NEON)
-				onSurface("Blush", Vector3.new(0.34, 0.16, 0.05), Color3.fromRGB(255, 110, 150), side * 0.72, 0.2, PLASTIC, 0.25)
-				-- each half of the "ω" is a little bottom-half circle of dots
-				local centerX = side * 0.15
-				for k = 0, 4 do
-					local t = math.pi + k / 4 * math.pi
-					onSurface("Mouth", Vector3.new(0.08, 0.08, 0.05), BLACK, centerX + math.cos(t) * 0.14, 0.12 + math.sin(t) * 0.14)
-				end
+	-- the cute face: dot eyes, blush and an "ω" mouth, stuck right onto the jelly's curves
+	if options.Face then
+		for _, side in { -1, 1 } do
+			onJelly("Eye", Vector3.new(0.2, 0.27, 0.08), BLACK, side * 0.36, 0.45)
+			onJelly("EyeShine", Vector3.new(0.07, 0.07, 0.1), WHITE, side * 0.36 - 0.04, 0.51, NEON)
+			onJelly("Blush", Vector3.new(0.3, 0.14, 0.06), Color3.fromRGB(255, 120, 155), side * 0.68, 0.18, PLASTIC, 0.2)
+			-- each half of the "ω" is a bottom-half circle made of overlapping dots
+			local centerX = side * 0.13
+			for k = 0, 6 do
+				local t = math.pi + k / 6 * math.pi
+				onJelly("Mouth", Vector3.new(0.075, 0.075, 0.06), BLACK, centerX + math.cos(t) * 0.13, 0.14 + math.sin(t) * 0.13)
 			end
 		end
 	end
@@ -347,9 +319,7 @@ PetModels.BottomOffset = 1.2
 
 -- Builds the pet with this name from Config.Pets.
 -- scale makes it bigger or smaller (1 = normal).
--- drawnFace = true draws the face with a SurfaceGui (sharper in the world,
--- but SurfaceGuis don't show inside menus, so menus use the part face).
-function PetModels.Build(petName: string, scale: number?, drawnFace: boolean?): Model
+function PetModels.Build(petName: string, scale: number?): Model
 	local info = Config.Pets[petName]
 	assert(info, "Unknown pet: " .. tostring(petName))
 
@@ -359,8 +329,7 @@ function PetModels.Build(petName: string, scale: number?, drawnFace: boolean?): 
 		Cream = info.Cream,
 		Topping = info.Topping,
 		Stars = info.Stars,
-		Face = not drawnFace,
-		DrawnFace = drawnFace,
+		Face = true,
 		Opaque = true,
 		Rarity = info.Rarity,
 		Scale = scale,
