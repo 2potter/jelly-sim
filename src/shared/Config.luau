@@ -16,7 +16,7 @@ Config.StartingJelly = 0
 Config.BaseWalkSpeed = 16
 Config.BasePetSlots = 3 -- how many pets can follow you at the start
 Config.MaxPetsInInventory = 60
-Config.StarterPet = "Jellybean Pup" -- everyone gets one free pet to start
+Config.StarterPet = "Strawberry Jiggle" -- everyone gets one free pet to start
 Config.AutosaveSeconds = 120
 
 ---------------------------------------------------------------------
@@ -34,21 +34,58 @@ Config.RarityColors = {
 }
 
 ---------------------------------------------------------------------
--- Pets: every pet is a little jelly creature.
---   Power = how much damage it does to jelly blobs each hit.
---   Look  = "Round", "Ears", "Horn" or "Crown" (adds a little extra shape).
+-- Pets: every pet is a wobbly jelly pudding with a cute face.
+--   Power   = how much damage it does to jelly blobs each hit.
+--   Color   = the jelly color. Colors = a list of colors for striped jelly.
+--   Cream   = the whipped cream color on top.
+--   Topping = "Cherry", "Berry", "Lemon", "Bean", "Star" or "Crown".
+--   Stars   = true puts little glittery stars inside the jelly.
+--   The game adds glow (Epic+), sparkles (Legendary+) and a halo (Mythical) by itself.
 ---------------------------------------------------------------------
+local C = Color3.fromRGB
+
 Config.Pets = {
-	["Jellybean Pup"] = { Rarity = "Common", Power = 1, Color = Color3.fromRGB(255, 150, 190), Look = "Ears" },
-	["Wobble Cat"] = { Rarity = "Common", Power = 1.5, Color = Color3.fromRGB(255, 200, 120), Look = "Ears" },
-	["Gummy Bunny"] = { Rarity = "Uncommon", Power = 3, Color = Color3.fromRGB(140, 230, 255), Look = "Ears" },
-	["Squishy Snail"] = { Rarity = "Uncommon", Power = 4, Color = Color3.fromRGB(180, 255, 140), Look = "Round" },
-	["Slime Fox"] = { Rarity = "Rare", Power = 8, Color = Color3.fromRGB(255, 120, 60), Look = "Ears" },
-	["Berry Bat"] = { Rarity = "Rare", Power = 10, Color = Color3.fromRGB(150, 80, 220), Look = "Ears" },
-	["Sparkle Squish"] = { Rarity = "Epic", Power = 25, Color = Color3.fromRGB(255, 120, 255), Look = "Horn" },
-	["Lime Dragonling"] = { Rarity = "Epic", Power = 35, Color = Color3.fromRGB(150, 255, 60), Look = "Horn" },
-	["Royal Blobfish"] = { Rarity = "Legendary", Power = 90, Color = Color3.fromRGB(255, 215, 80), Look = "Crown" },
-	["Cosmic Goo"] = { Rarity = "Mythical", Power = 300, Color = Color3.fromRGB(60, 40, 120), Look = "Crown" },
+	-- Common
+	["Strawberry Jiggle"] = { Rarity = "Common", Power = 1, Color = C(255, 150, 190), Cream = C(255, 250, 245), Topping = "Cherry" },
+	["Lemon Wobble"] = { Rarity = "Common", Power = 1.5, Color = C(255, 230, 110), Cream = C(255, 250, 235), Topping = "Lemon" },
+	["Milk Pudding"] = { Rarity = "Common", Power = 2, Color = C(255, 236, 200), Cream = C(190, 120, 60), Topping = "Cherry" },
+	-- Uncommon
+	["Blueberry Bloop"] = { Rarity = "Uncommon", Power = 3.5, Color = C(110, 190, 255), Cream = C(190, 255, 210), Topping = "Cherry", Stars = true },
+	["Matcha Mochi"] = { Rarity = "Uncommon", Power = 4.5, Color = C(160, 220, 120), Cream = C(255, 255, 245), Topping = "Bean" },
+	-- Rare
+	["Peach Puff"] = { Rarity = "Rare", Power = 9, Color = C(255, 175, 140), Cream = C(255, 240, 250), Topping = "Berry" },
+	["Grape Galaxy"] = { Rarity = "Rare", Power = 12, Color = C(160, 100, 255), Cream = C(230, 210, 255), Topping = "Berry", Stars = true },
+	-- Epic
+	["Cotton Candy Swirl"] = { Rarity = "Epic", Power = 28, Color = C(255, 170, 220), Colors = { C(255, 170, 220), C(150, 210, 255) }, Cream = C(255, 255, 255), Topping = "Star" },
+	["Mint Choco Jiggle"] = { Rarity = "Epic", Power = 38, Color = C(120, 240, 200), Cream = C(110, 70, 45), Topping = "Cherry", Stars = true },
+	-- Legendary
+	["Golden Honey Royale"] = { Rarity = "Legendary", Power = 95, Color = C(255, 200, 60), Cream = C(255, 250, 230), Topping = "Crown", Stars = true },
+	-- Mythical
+	["Rainbow Dream"] = {
+		Rarity = "Mythical",
+		Power = 250,
+		Color = C(255, 140, 200),
+		Colors = { C(255, 120, 140), C(255, 190, 100), C(255, 240, 120), C(140, 240, 140), C(120, 190, 255), C(190, 140, 255) },
+		Cream = C(255, 255, 255),
+		Topping = "Star",
+		Stars = true,
+	},
+	["Starlight Jelly"] = { Rarity = "Mythical", Power = 320, Color = C(70, 60, 170), Cream = C(200, 220, 255), Topping = "Star", Stars = true },
+}
+
+-- Pets from older versions of the game get turned into the new ones
+-- so nobody loses their pets.
+Config.RenamedPets = {
+	["Jellybean Pup"] = "Strawberry Jiggle",
+	["Wobble Cat"] = "Lemon Wobble",
+	["Gummy Bunny"] = "Blueberry Bloop",
+	["Squishy Snail"] = "Matcha Mochi",
+	["Slime Fox"] = "Peach Puff",
+	["Berry Bat"] = "Grape Galaxy",
+	["Sparkle Squish"] = "Cotton Candy Swirl",
+	["Lime Dragonling"] = "Mint Choco Jiggle",
+	["Royal Blobfish"] = "Golden Honey Royale",
+	["Cosmic Goo"] = "Starlight Jelly",
 }
 
 ---------------------------------------------------------------------
@@ -62,31 +99,37 @@ Config.Zones = {
 	{
 		Name = "Gummy Meadow",
 		Price = 0,
-		FloorColor = Color3.fromRGB(130, 215, 130),
+		FloorColor = C(150, 225, 140),
+		PathColor = C(255, 230, 240),
+		Decor = { C(255, 150, 200), C(255, 220, 120), C(170, 230, 255) },
 		Blobs = {
-			{ Name = "Jelly Drop", Health = 5, Reward = 2, Size = 2.5, Color = Color3.fromRGB(255, 120, 190), Chance = 80 },
-			{ Name = "Jelly Pile", Health = 25, Reward = 12, Size = 4, Color = Color3.fromRGB(255, 80, 160), Chance = 18 },
-			{ Name = "Giant Jelly", Health = 150, Reward = 90, Size = 7, Color = Color3.fromRGB(230, 40, 140), Chance = 2 },
+			{ Name = "Jelly Drop", Style = "Drop", Health = 5, Reward = 2, Size = 2.6, Color = C(255, 120, 190), Chance = 80 },
+			{ Name = "Jelly Pudding", Style = "Pudding", Health = 25, Reward = 12, Size = 4, Color = C(255, 90, 170), Chance = 18 },
+			{ Name = "Giant Pudding", Style = "Giant", Health = 150, Reward = 90, Size = 7, Color = C(240, 60, 150), Chance = 2 },
 		},
 	},
 	{
 		Name = "Berry Bay",
 		Price = 400,
-		FloorColor = Color3.fromRGB(240, 220, 160),
+		FloorColor = C(250, 230, 180),
+		PathColor = C(200, 235, 255),
+		Decor = { C(140, 110, 255), C(90, 200, 255), C(255, 160, 220) },
 		Blobs = {
-			{ Name = "Berry Drop", Health = 30, Reward = 15, Size = 2.5, Color = Color3.fromRGB(130, 90, 255), Chance = 80 },
-			{ Name = "Berry Pile", Health = 150, Reward = 80, Size = 4, Color = Color3.fromRGB(100, 60, 230), Chance = 18 },
-			{ Name = "Giant Berry Jelly", Health = 900, Reward = 550, Size = 7, Color = Color3.fromRGB(70, 30, 200), Chance = 2 },
+			{ Name = "Berry Drop", Style = "Drop", Health = 30, Reward = 15, Size = 2.6, Color = C(140, 100, 255), Chance = 80 },
+			{ Name = "Berry Pudding", Style = "Pudding", Health = 150, Reward = 80, Size = 4, Color = C(110, 80, 240), Chance = 18 },
+			{ Name = "Giant Berry Pudding", Style = "Giant", Health = 900, Reward = 550, Size = 7, Color = C(80, 60, 220), Chance = 2 },
 		},
 	},
 	{
 		Name = "Lava Lime Peaks",
 		Price = 6000,
-		FloorColor = Color3.fromRGB(95, 65, 70),
+		FloorColor = C(110, 80, 90),
+		PathColor = C(255, 170, 90),
+		Decor = { C(170, 255, 80), C(255, 120, 60), C(255, 220, 90) },
 		Blobs = {
-			{ Name = "Lime Drop", Health = 200, Reward = 100, Size = 2.5, Color = Color3.fromRGB(170, 255, 60), Chance = 80 },
-			{ Name = "Lime Pile", Health = 1000, Reward = 550, Size = 4, Color = Color3.fromRGB(120, 230, 30), Chance = 18 },
-			{ Name = "Giant Lime Jelly", Health = 6000, Reward = 4000, Size = 7, Color = Color3.fromRGB(80, 200, 0), Chance = 2 },
+			{ Name = "Lime Drop", Style = "Drop", Health = 200, Reward = 100, Size = 2.6, Color = C(170, 255, 70), Chance = 80 },
+			{ Name = "Lime Pudding", Style = "Pudding", Health = 1000, Reward = 550, Size = 4, Color = C(120, 235, 40), Chance = 18 },
+			{ Name = "Giant Lime Pudding", Style = "Giant", Health = 6000, Reward = 4000, Size = 7, Color = C(80, 210, 20), Chance = 2 },
 		},
 	},
 }
@@ -99,42 +142,48 @@ Config.BlobRespawnSeconds = 0.4
 ---------------------------------------------------------------------
 Config.Eggs = {
 	{
-		Name = "Wobbly Egg",
+		Name = "Pudding Egg",
 		Price = 50,
 		Zone = 1,
-		Color = Color3.fromRGB(255, 180, 220),
+		Color = C(255, 190, 220),
+		SpotColor = C(255, 255, 255),
 		Pets = {
-			{ "Jellybean Pup", 50 },
-			{ "Wobble Cat", 35 },
-			{ "Gummy Bunny", 10 },
-			{ "Squishy Snail", 4 },
-			{ "Slime Fox", 1 },
+			{ "Strawberry Jiggle", 45 },
+			{ "Lemon Wobble", 32 },
+			{ "Milk Pudding", 15 },
+			{ "Blueberry Bloop", 6 },
+			{ "Matcha Mochi", 1.9 },
+			{ "Peach Puff", 0.1 },
 		},
 	},
 	{
 		Name = "Berry Egg",
 		Price = 600,
 		Zone = 2,
-		Color = Color3.fromRGB(150, 110, 255),
+		Color = C(150, 120, 255),
+		SpotColor = C(255, 200, 240),
 		Pets = {
-			{ "Gummy Bunny", 45 },
-			{ "Squishy Snail", 30 },
-			{ "Slime Fox", 15 },
-			{ "Berry Bat", 8 },
-			{ "Sparkle Squish", 2 },
+			{ "Blueberry Bloop", 42 },
+			{ "Matcha Mochi", 30 },
+			{ "Peach Puff", 17 },
+			{ "Grape Galaxy", 9 },
+			{ "Cotton Candy Swirl", 1.95 },
+			{ "Golden Honey Royale", 0.05 },
 		},
 	},
 	{
 		Name = "Lava Lime Egg",
 		Price = 9000,
 		Zone = 3,
-		Color = Color3.fromRGB(170, 255, 80),
+		Color = C(170, 255, 90),
+		SpotColor = C(255, 140, 60),
 		Pets = {
-			{ "Berry Bat", 50 },
-			{ "Sparkle Squish", 30 },
-			{ "Lime Dragonling", 17 },
-			{ "Royal Blobfish", 2.9 },
-			{ "Cosmic Goo", 0.1 },
+			{ "Grape Galaxy", 48 },
+			{ "Cotton Candy Swirl", 30 },
+			{ "Mint Choco Jiggle", 18.9 },
+			{ "Golden Honey Royale", 3 },
+			{ "Rainbow Dream", 0.08 },
+			{ "Starlight Jelly", 0.02 },
 		},
 	},
 }

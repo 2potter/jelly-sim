@@ -34,6 +34,19 @@ function Ui.round(parent: GuiObject, scale: number?, offset: number?)
 	Ui.new("UICorner", { CornerRadius = UDim.new(scale or 0, offset or 12), Parent = parent })
 end
 
+-- Makes a color look glossy: lighter at the top, a bit darker at the bottom.
+function Ui.gloss(parent: GuiObject)
+	Ui.new("UIGradient", {
+		Rotation = 90,
+		Color = ColorSequence.new({
+			ColorSequenceKeypoint.new(0, Color3.new(1, 1, 1)),
+			ColorSequenceKeypoint.new(0.45, Color3.fromRGB(245, 245, 245)),
+			ColorSequenceKeypoint.new(1, Color3.fromRGB(190, 190, 200)),
+		}),
+		Parent = parent,
+	})
+end
+
 function Ui.outline(parent: GuiObject, color: Color3?, thickness: number?)
 	Ui.new("UIStroke", {
 		Color = color or Ui.Dark,
@@ -78,6 +91,7 @@ function Ui.button(text: string, color: Color3, props: { [string]: any }): TextB
 	end
 	Ui.round(button)
 	Ui.outline(button)
+	Ui.gloss(button)
 	Ui.new("UIStroke", { Color = Ui.Dark, Thickness = 2, ApplyStrokeMode = Enum.ApplyStrokeMode.Contextual, Parent = button })
 	Ui.new("UIPadding", {
 		PaddingTop = UDim.new(0, 4),
@@ -96,7 +110,7 @@ function Ui.petViewport(petName: string, props: { [string]: any }): (ViewportFra
 		BackgroundTransparency = 1,
 		Ambient = Color3.fromRGB(200, 200, 200),
 		LightColor = Color3.new(1, 1, 1),
-		LightDirection = Vector3.new(-1, -1, -1),
+		LightDirection = Vector3.new(-0.5, -1, 0.8), -- light shining onto the pet's face
 	})
 	for key, value in props do
 		if key ~= "Parent" then
@@ -104,11 +118,11 @@ function Ui.petViewport(petName: string, props: { [string]: any }): (ViewportFra
 		end
 	end
 	local model = PetModels.Build(petName)
-	model:PivotTo(CFrame.Angles(0, math.rad(-25), 0)) -- turn it a little so it looks 3D
+	model:PivotTo(CFrame.Angles(0, math.rad(20), 0)) -- turn it a little so it looks 3D
 	model.Parent = viewport
 
 	local camera = Ui.new("Camera", { FieldOfView = 40, Parent = viewport })
-	camera.CFrame = CFrame.lookAt(Vector3.new(0, 1.2, -6.5), Vector3.new(0, 0.3, 0))
+	camera.CFrame = CFrame.lookAt(Vector3.new(0, 1.6, -7.5), Vector3.new(0, 0.6, 0))
 	viewport.CurrentCamera = camera
 
 	viewport.Parent = props.Parent

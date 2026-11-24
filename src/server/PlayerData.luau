@@ -73,9 +73,13 @@ local function mergeSaved(data: Data, saved: any)
 	end
 	if type(saved.Pets) == "table" then
 		for _, pet in saved.Pets do
-			-- skip pets that were removed from Config
-			if type(pet) == "table" and Config.Pets[pet.Name] then
-				table.insert(data.Pets, { Name = pet.Name, Equipped = pet.Equipped == true })
+			if type(pet) == "table" then
+				-- old pet names turn into their new jelly versions
+				local name = Config.RenamedPets[pet.Name] or pet.Name
+				-- skip pets that were removed from Config
+				if Config.Pets[name] then
+					table.insert(data.Pets, { Name = name, Equipped = pet.Equipped == true })
+				end
 			end
 		end
 	end

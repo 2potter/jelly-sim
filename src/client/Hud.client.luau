@@ -34,6 +34,7 @@ local counter = Ui.new("Frame", {
 })
 Ui.round(counter, 0.5, 0)
 Ui.outline(counter)
+Ui.gloss(counter)
 local counterScale = Ui.new("UIScale", { Parent = counter })
 
 Ui.label({
@@ -102,6 +103,33 @@ end)
 local RISE = TweenInfo.new(1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 local FLY = TweenInfo.new(0.45, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
 
+-- a little splash of jelly where the blob popped
+local function splash(position: Vector3, color: Color3)
+	local holder = Instance.new("Part")
+	holder.Anchored = true
+	holder.CanCollide = false
+	holder.CanQuery = false
+	holder.CanTouch = false
+	holder.Transparency = 1
+	holder.Size = Vector3.new(1, 1, 1)
+	holder.Position = position
+	holder.Parent = workspace
+
+	local emitter = Instance.new("ParticleEmitter")
+	emitter.Color = ColorSequence.new(color)
+	emitter.LightEmission = 0.3
+	emitter.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.8), NumberSequenceKeypoint.new(1, 0) })
+	emitter.Transparency = NumberSequence.new(0.2)
+	emitter.Lifetime = NumberRange.new(0.4, 0.7)
+	emitter.Speed = NumberRange.new(10, 18)
+	emitter.SpreadAngle = Vector2.new(180, 180)
+	emitter.Acceleration = Vector3.new(0, -40, 0)
+	emitter.Enabled = false
+	emitter.Parent = holder
+	emitter:Emit(24)
+	Debris:AddItem(holder, 1)
+end
+
 local function flyingBits(fromPosition: Vector3, color: Color3)
 	local character = player.Character
 	local root = character and character:FindFirstChild("HumanoidRootPart")
@@ -128,6 +156,7 @@ local function flyingBits(fromPosition: Vector3, color: Color3)
 end
 
 remotes:WaitForChild("Reward").OnClientEvent:Connect(function(amount: number, position: Vector3, color: Color3)
+	splash(position, color)
 	flyingBits(position, color)
 
 	local popup = Ui.label({
