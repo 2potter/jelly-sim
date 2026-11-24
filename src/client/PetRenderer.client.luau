@@ -47,6 +47,7 @@ folder.Parent = workspace
 type PartInfo = { Offset: CFrame, Mesh: SpecialMesh? }
 type Pet = {
 	Model: Model,
+	Shadow: BasePart,
 	PartList: { BasePart },
 	Infos: { PartInfo },
 	CFrames: { CFrame },
@@ -95,12 +96,7 @@ local function setPose(pet: Pet, base: CFrame, stretch: number, squeeze: number)
 end
 
 local function buildPet(petName: string, position: Vector3): Pet?
-	local ok, model = pcall(PetModels.Build, petName, PET_SCALE, true)
-	if not ok then
-		-- if the drawn face breaks, use the face made of parts instead
-		warn("[JellySim] Pet with drawn face failed, using simple face: " .. tostring(model))
-		ok, model = pcall(PetModels.Build, petName, PET_SCALE, false)
-	end
+	local ok, model = pcall(PetModels.Build, petName, PET_SCALE)
 	if not ok then
 		warn("[JellySim] Couldn't build pet " .. tostring(petName) .. ": " .. tostring(model))
 		return nil
@@ -110,6 +106,7 @@ local function buildPet(petName: string, position: Vector3): Pet?
 	local bottom = body.CFrame * CFrame.new(0, -BOTTOM, 0)
 	local pet: Pet = {
 		Model = model,
+		Shadow = nil :: any,
 		PartList = {},
 		Infos = {},
 		CFrames = {},
@@ -142,6 +139,22 @@ local function buildPet(petName: string, position: Vector3): Pet?
 			})
 		end
 	end
+
+	-- a soft round shadow on the ground under the pet (moved separately, so it stays on the floor)
+	local shadow = Instance.new("Part")
+	shadow.Name = "Shadow"
+	shadow.Shape = Enum.PartType.Cylinder
+	shadow.Size = Vector3.new(0.05, 2.6 * PET_SCALE, 2.6 * PET_SCALE)
+	shadow.Color = Color3.new(0, 0, 0)
+	shadow.Material = Enum.Material.SmoothPlastic
+	shadow.Transparency = 0.65
+	shadow.Anchored = true
+	shadow.CanCollide = false
+	shadow.CanQuery = false
+	shadow.CanTouch = false
+	shadow.CastShadow = false
+	shadow.Parent = model
+	pet.Shadow = shadow
 
 	-- name tag floating above the pet
 	local info = Config.Pets[petName]
@@ -376,6 +389,11 @@ local function updatePet(pet: Pet, index: number, count: number, root: BasePart,
 		* CFrame.Angles(0, pet.Yaw, 0)
 		* CFrame.Angles(pet.Pitch, 0, roll)
 	setPose(pet, base, stretch, squeeze)
+
+	-- the shadow stays on the floor and fades a bit when the pet is up in the air
+	local airHeight = pet.Height + waddle
+	pet.Shadow.CFrame = CFrame.new(pet.Position.X, pet.GroundY + 0.04, pet.Position.Z) * CFrame.Angles(0, 0, math.rad(90))
+	pet.Shadow.Transparency = 0.65 + math.min(airHeight / 6, 0.25)
 end
 
 RunService.RenderStepped:Connect(function(frameTime)
