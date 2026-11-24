@@ -241,8 +241,12 @@ function PetModels.Pudding(options: PuddingOptions): Model
 	return model
 end
 
+-- How far below the Body's center the bottom of the pudding is (at Scale 1).
+PetModels.BottomOffset = 1.2
+
 -- Builds the pet with this name from Config.Pets.
-function PetModels.Build(petName: string): Model
+-- scale makes it bigger or smaller (1 = normal).
+function PetModels.Build(petName: string, scale: number?): Model
 	local info = Config.Pets[petName]
 	assert(info, "Unknown pet: " .. tostring(petName))
 
@@ -254,6 +258,7 @@ function PetModels.Build(petName: string): Model
 		Stars = info.Stars,
 		Face = true,
 		Rarity = info.Rarity,
+		Scale = scale,
 	})
 	model.Name = petName
 	return model

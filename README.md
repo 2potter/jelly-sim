@@ -92,7 +92,7 @@ Without this the game still works, your Jelly just resets every time you press P
 | --- | --- | --- |
 | `src/shared` | `Config` (all the numbers, pets, zones, eggs), pet models, number formatting | ReplicatedStorage → Shared |
 | `src/server` | the world builder, jelly blobs, pets, saving, and `Main` that starts it all | ServerScriptService → Server |
-| `src/client` | the screen stuff: Jelly counter, menus, hatch animation, gates | StarterPlayerScripts → Client |
+| `src/client` | the screen stuff: pet animations (`PetRenderer`), Jelly counter, menus, hatch animation, gates | StarterPlayerScripts → Client |
 
 **Want to change something? Start with `src/shared/Config.luau`.** You can add pets, make eggs
 cheaper, add a fourth zone, or make blobs give more Jelly, all in that one file.

@@ -1,6 +1,12 @@
 --[[
-	Pets: hatching eggs, equipping pets, and making them follow you
-	and swarm jelly blobs.
+	Pets: hatching eggs, equipping pets, and sending them at jelly blobs.
+
+	The server does the game rules only (who has which pets, what they
+	attack, how much damage). The pets you SEE are drawn and animated on
+	each player's screen by client/PetRenderer, so they move smoothly.
+	The server tells the screens what to draw with:
+	  - player attribute "EquippedPets": pet names joined with commas
+	  - player.PetTarget (an ObjectValue): the blob the pets are attacking
 
 	Each equipped pet hits its blob every Config.PetHitSeconds for
 	(pet Power x Stronger Pets upgrade) damage.
@@ -12,17 +18,17 @@ local RunService = game:GetService("RunService")
 
 local Config = require(ReplicatedStorage.Shared.Config)
 local Format = require(ReplicatedStorage.Shared.Format)
-local PetModels = require(ReplicatedStorage.Shared.PetModels)
 local Blobs = require(script.Parent.Blobs)
 local PlayerData = require(script.Parent.PlayerData)
 local Remotes = require(script.Parent.Remotes)
 
 local Pets = {}
 
-type FollowingPet = { Model: Model, Power: number }
+type FollowingPet = { Name: string, Power: number }
 type State = {
 	Following: { FollowingPet },
 	Target: BasePart?,
+	ArriveAt: number, -- when the pets reach the target (they need time to run there)
 	Auto: boolean,
 	HitTimer: number,
 	LastHatch: number,
@@ -31,15 +37,15 @@ type State = {
 local states: { [Player]: State } = {}
 local random = Random.new()
 
-local petsFolder = Instance.new("Folder")
-petsFolder.Name = "FollowingPets"
-petsFolder.Parent = workspace
-
 local function getState(player: Player): State
 	local state = states[player]
 	if not state then
-		state = { Following = {}, Target = nil, Auto = false, HitTimer = 0, LastHatch = 0 }
+		state = { Following = {}, Target = nil, ArriveAt = 0, Auto = false, HitTimer = 0, LastHatch = 0 }
 		states[player] = state
+
+		local targetValue = Instance.new("ObjectValue")
+		targetValue.Name = "PetTarget"
+		targetValue.Parent = player
 	end
 	return state
 end
@@ -69,35 +75,46 @@ local function rollPet(egg): string
 	return egg.Pets[1][1]
 end
 
--- Rebuilds the pet models that follow the player (call after equip changes).
+-- Changes which blob the pets attack, and tells everyone's screen.
+local function setTarget(player: Player, state: State, blob: BasePart?)
+	state.Target = blob
+	state.HitTimer = 0
+	if blob then
+		-- pets run about 30 studs a second, so wait until they get there
+		local character = player.Character
+		local root = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
+		local distance = if root then (blob.Position - root.Position).Magnitude else 0
+		state.ArriveAt = os.clock() + math.max(0.35, distance / 30)
+	end
+	local targetValue = player:FindFirstChild("PetTarget")
+	if targetValue and targetValue:IsA("ObjectValue") then
+		targetValue.Value = blob
+	end
+end
+
+-- Updates the list of pets that follow the player (call after equip changes).
 function Pets.Refresh(player: Player)
 	local data = PlayerData.Get(player)
 	local state = getState(player)
 
-	for _, following in state.Following do
-		following.Model:Destroy()
-	end
 	table.clear(state.Following)
 	if not data then
 		return
 	end
 
-	local character = player.Character
-	local root = character and character:FindFirstChild("HumanoidRootPart")
-	local startCFrame = if root then (root :: BasePart).CFrame else CFrame.new(Config.ZoneCenter(1))
-
 	local powerMultiplier = 1 + 0.25 * data.Upgrades.PetPower
+	local names = {}
 	for _, pet in data.Pets do
 		if pet.Equipped then
-			local model = PetModels.Build(pet.Name)
-			model:PivotTo(startCFrame)
-			model.Parent = petsFolder
 			table.insert(state.Following, {
-				Model = model,
+				Name = pet.Name,
 				Power = Config.Pets[pet.Name].Power * powerMultiplier,
 			})
+			table.insert(names, pet.Name)
 		end
 	end
+	-- every player's screen reads this to draw the pets
+	player:SetAttribute("EquippedPets", table.concat(names, ","))
 end
 
 -- Equips the strongest pets that fit in your pet slots.
@@ -224,7 +241,7 @@ function Pets.SetTarget(player: Player, blob: BasePart)
 		Remotes.Tell(player, "You need a pet first! Hatch an egg.", Color3.fromRGB(255, 200, 120))
 		return
 	end
-	state.Target = if state.Target == blob then nil else blob -- click again to call pets back
+	setTarget(player, state, if state.Target == blob then nil else blob) -- click again to call pets back
 end
 
 function Pets.SetAuto(player: Player, isOn: any)
@@ -233,12 +250,7 @@ end
 
 function Pets.Clear(player: Player)
 	local state = states[player]
-	if state then
-		for _, following in state.Following do
-			following.Model:Destroy()
-		end
-		states[player] = nil
-	end
+	states[player] = nil
 end
 
 local function updatePlayer(player: Player, state: State, dt: number, now: number)
@@ -255,63 +267,30 @@ local function updatePlayer(player: Player, state: State, dt: number, now: numbe
 	-- forget targets that are gone or too far away
 	local target = state.Target
 	if target and (not Blobs.IsAlive(target) or (target.Position - root.Position).Magnitude > Config.ClickRange + 20) then
-		state.Target = nil
+		setTarget(player, state, nil)
 		target = nil
 	end
 
 	-- Auto mode: find the next blob by itself
 	if not target and state.Auto and #state.Following > 0 then
 		target = Blobs.FindNearest(root.Position, Config.AutoTargetRange, data.ZonesUnlocked)
-		state.Target = target
-	end
-
-	local count = #state.Following
-	local alpha = 1 - math.exp(-dt * 8) -- smooth movement
-	local petsAtTarget = 0
-	local damage = 0
-
-	for i, following in state.Following do
-		local model = following.Model
-		local body = model.PrimaryPart :: BasePart
-		local current = body.CFrame
-		local goal: CFrame
-
 		if target then
-			-- circle around the blob and hop on it
-			local angle = (i / count) * math.pi * 2
-			local radius = target.Size.X / 2 + 1.4
-			local hop = math.abs(math.sin(now * 8 + i)) * 1.2
-			local spot = target.Position + Vector3.new(math.cos(angle) * radius, -target.Size.Y / 2 + 1.25 + hop, math.sin(angle) * radius)
-			goal = CFrame.lookAt(spot, Vector3.new(target.Position.X, spot.Y, target.Position.Z))
-			if (current.Position - spot).Magnitude < 4 then
-				petsAtTarget += 1
-				damage += following.Power
-			end
-		else
-			-- follow behind the player in a little row
-			local spread = (i - (count + 1) / 2) * 3.5
-			local bob = math.sin(now * 4 + i) * 0.3
-			local flat = CFrame.new(root.Position) * CFrame.Angles(0, select(2, root.CFrame:ToEulerAnglesYXZ()), 0)
-			local spot = (flat * CFrame.new(spread, -1.8 + bob, 6 + math.abs(spread) * 0.3)).Position
-			local wobble = math.sin(now * 6 + i) * 0.08 -- jiggly waddle
-			goal = CFrame.lookAt(spot, spot + root.CFrame.LookVector) * CFrame.Angles(0, 0, wobble)
-		end
-
-		if (current.Position - goal.Position).Magnitude > 100 then
-			body.CFrame = goal -- too far, just teleport
-		else
-			-- only the body moves; every other part is welded to it
-			body.CFrame = current:Lerp(goal, alpha)
+			setTarget(player, state, target)
 		end
 	end
 
-	-- pets that reached the blob hit it every PetHitSeconds
+	-- once the pets have arrived, they all hit the blob every PetHitSeconds
+	if not target or now < state.ArriveAt then
+		return
+	end
 	state.HitTimer += dt
 	if state.HitTimer >= Config.PetHitSeconds then
 		state.HitTimer = 0
-		if target and petsAtTarget > 0 then
-			Blobs.Damage(player, target, damage)
+		local damage = 0
+		for _, following in state.Following do
+			damage += following.Power
 		end
+		Blobs.Damage(player, target, damage)
 	end
 end
 
