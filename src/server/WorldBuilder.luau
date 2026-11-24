@@ -108,13 +108,20 @@ end
 -- Lighting: bright, soft and a little bit dreamy
 ---------------------------------------------------------------------
 local function setupLighting()
-	Lighting.ClockTime = 14.5
-	Lighting.Brightness = 2.5
-	Lighting.Ambient = Color3.fromRGB(120, 100, 130)
-	Lighting.OutdoorAmbient = Color3.fromRGB(170, 150, 190)
-	Lighting.EnvironmentDiffuseScale = 0.6
-	Lighting.EnvironmentSpecularScale = 1 -- makes the jelly shiny
+	-- The main lighting settings (Future lighting, sun, brightness) live in
+	-- default.project.json, because a script isn't allowed to switch on Future
+	-- lighting. These are the same values, in case the project file wasn't used.
+	Lighting.ClockTime = 14.2
+	Lighting.GeographicLatitude = 35
+	Lighting.Brightness = 3
+	Lighting.ExposureCompensation = 0.1
+	Lighting.Ambient = Color3.fromRGB(72, 64, 80)
+	Lighting.OutdoorAmbient = Color3.fromRGB(140, 128, 152)
+	Lighting.ColorShift_Top = Color3.fromRGB(255, 237, 214) -- warm sunshine
+	Lighting.EnvironmentDiffuseScale = 1
+	Lighting.EnvironmentSpecularScale = 1 -- shiny reflections on the jelly
 	Lighting.GlobalShadows = true
+	Lighting.ShadowSoftness = 0.35
 
 	local function effect(className: string, props: { [string]: any })
 		local existing = Lighting:FindFirstChild("Jelly" .. className)
@@ -129,22 +136,25 @@ local function setupLighting()
 		instance.Parent = Lighting
 	end
 
+	-- a soft pink-and-lilac sky haze, without washing the colors out
 	effect("Atmosphere", {
-		Density = 0.28,
-		Offset = 0.1,
-		Color = Color3.fromRGB(255, 215, 235),
-		Decay = Color3.fromRGB(190, 160, 255),
-		Glare = 0.3,
-		Haze = 1.2,
+		Density = 0.22,
+		Offset = 0.25,
+		Color = Color3.fromRGB(255, 226, 236),
+		Decay = Color3.fromRGB(175, 145, 225),
+		Glare = 0.15,
+		Haze = 0.8,
 	})
-	effect("BloomEffect", { Intensity = 0.7, Size = 28, Threshold = 1.6 })
+	-- a gentle glow on bright and neon things
+	effect("BloomEffect", { Intensity = 0.35, Size = 24, Threshold = 1.8 })
+	-- a little extra color and contrast so it pops
 	effect("ColorCorrectionEffect", {
-		Saturation = 0.18,
-		Contrast = 0.06,
-		Brightness = 0.02,
-		TintColor = Color3.fromRGB(255, 245, 250),
+		Saturation = 0.12,
+		Contrast = 0.1,
+		Brightness = 0,
+		TintColor = Color3.fromRGB(255, 249, 246),
 	})
-	effect("SunRaysEffect", { Intensity = 0.04, Spread = 0.6 })
+	effect("SunRaysEffect", { Intensity = 0.06, Spread = 0.5 })
 end
 
 ---------------------------------------------------------------------
