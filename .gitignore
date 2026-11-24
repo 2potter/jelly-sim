@@ -1,0 +1,7 @@
+# Roblox place files you save yourself (the code lives in src/)
+*.rbxl
+*.rbxlx
+*.rbxl.lock
+*.rbxlx.lock
+sourcemap.json
+/build
