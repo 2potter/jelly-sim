@@ -567,6 +567,13 @@ function WorldBuilder.Build()
 	spawn.Duration = 0 -- no spawn forcefield
 	spawn.Parent = world
 
+	-- remove the grey spawn pad that comes with a new Baseplate place
+	for _, child in workspace:GetChildren() do
+		if child:IsA("SpawnLocation") then
+			child:Destroy()
+		end
+	end
+
 	-- hide the plain baseplate under our map, if the place has one
 	local baseplate = workspace:FindFirstChild("Baseplate")
 	if baseplate and baseplate:IsA("BasePart") then

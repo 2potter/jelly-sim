@@ -44,6 +44,7 @@ local function makeHealthBar(blob: Part, title: string, color: Color3)
 	gui.Size = UDim2.fromOffset(110, 34)
 	gui.StudsOffset = Vector3.new(0, blob.Size.Y / 2 + 1.5, 0)
 	gui.MaxDistance = 60
+	gui.Enabled = false -- only shows up once the blob gets hit, so the screen stays clean
 	gui.LightInfluence = 0
 
 	local name = Instance.new("TextLabel")
@@ -237,6 +238,7 @@ function Blobs.Damage(player: Player, blob: BasePart, amount: number)
 
 	local bar = blob:FindFirstChild("HealthBar")
 	if bar then
+		bar.Enabled = true
 		bar.Back.Fill.Size = UDim2.fromScale(health / maxHealth, 1)
 	end
 
