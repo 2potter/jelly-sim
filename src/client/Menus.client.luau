@@ -65,6 +65,7 @@ local function makeWindow(title: string, color: Color3): (Frame, Frame)
 
 	local top = Ui.new("Frame", { Size = UDim2.new(1, 0, 0, 52), BackgroundColor3 = color, Parent = window })
 	Ui.round(top, 0, 20)
+	Ui.gloss(top)
 	Ui.label({ Name = "Title", Text = title, Position = UDim2.fromOffset(16, 8), Size = UDim2.new(0.4, 0, 0, 36), TextXAlignment = Enum.TextXAlignment.Left, Parent = top })
 
 	local close = Ui.button("X", Ui.Red, { AnchorPoint = Vector2.new(1, 0), Position = UDim2.new(1, -8, 0, 6), Size = UDim2.fromOffset(40, 40), Parent = top })
@@ -166,11 +167,12 @@ local function showPets(pets: { { Name: string, Equipped: boolean } }, slots: nu
 			LayoutOrder = position,
 			Text = "",
 			AutoButtonColor = true,
-			BackgroundColor3 = if pet.Equipped then Color3.fromRGB(200, 255, 200) else Color3.fromRGB(255, 255, 255),
+			BackgroundColor3 = rarityColor:Lerp(Color3.new(1, 1, 1), if pet.Equipped then 0.45 else 0.75),
 			Parent = petsBody,
 		})
 		Ui.round(card)
-		Ui.outline(card, rarityColor, 4)
+		Ui.outline(card, if pet.Equipped then Ui.Green else rarityColor, 4)
+		Ui.gloss(card)
 
 		local _, model = Ui.petViewport(pet.Name, { Size = UDim2.new(1, 0, 0, 80), Parent = card })
 		table.insert(spinning, model)
@@ -222,6 +224,7 @@ for order, upgradeName in Config.UpgradeOrder do
 	})
 	Ui.round(row)
 	Ui.outline(row, Ui.Purple, 3)
+	Ui.gloss(row)
 
 	local title = Ui.label({ Text = info.Title, Position = UDim2.fromOffset(12, 6), Size = UDim2.new(0.6, 0, 0, 30), TextXAlignment = Enum.TextXAlignment.Left, TextColor3 = Ui.Purple, Parent = row })
 	Ui.label({ Text = info.Info, Position = UDim2.fromOffset(12, 38), Size = UDim2.new(0.6, 0, 0, 22), TextXAlignment = Enum.TextXAlignment.Left, Parent = row })

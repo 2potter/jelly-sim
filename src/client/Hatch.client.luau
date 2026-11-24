@@ -55,14 +55,15 @@ local function playHatch(petName: string, eggIndex: number)
 	})
 	Ui.round(eggFrame, 0.5, 0)
 	Ui.outline(eggFrame, Ui.Dark, 5)
+	Ui.gloss(eggFrame)
 	-- white spots on the egg
 	for _, spot in { { 0.3, 0.3, 30 }, { 0.65, 0.55, 22 }, { 0.4, 0.75, 16 } } do
 		local dot = Ui.new("Frame", {
 			AnchorPoint = Vector2.new(0.5, 0.5),
 			Position = UDim2.fromScale(spot[1], spot[2]),
 			Size = UDim2.fromOffset(spot[3], spot[3]),
-			BackgroundColor3 = Color3.new(1, 1, 1),
-			BackgroundTransparency = 0.3,
+			BackgroundColor3 = egg and egg.SpotColor or Color3.new(1, 1, 1),
+			BackgroundTransparency = 0.1,
 			Parent = eggFrame,
 		})
 		Ui.round(dot, 0.5, 0)
@@ -88,6 +89,37 @@ local function playHatch(petName: string, eggIndex: number)
 	eggFrame:Destroy()
 	tween(flash, 0.4, { BackgroundTransparency = 1 })
 
+	-- spinning light rays behind the pet, in the rarity's color
+	local rays = Ui.new("Frame", {
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.45),
+		Size = UDim2.fromOffset(520, 520),
+		BackgroundTransparency = 1,
+		Parent = dim,
+	})
+	local rayList = {}
+	for i = 1, 8 do
+		local ray = Ui.new("Frame", {
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.fromScale(0.5, 0.5),
+			Size = UDim2.new(0, 46, 1, 0),
+			Rotation = i * 22.5,
+			BackgroundColor3 = rarityColor,
+			BorderSizePixel = 0,
+			Parent = rays,
+		})
+		Ui.new("UIGradient", {
+			Rotation = 90,
+			Transparency = NumberSequence.new({
+				NumberSequenceKeypoint.new(0, 1),
+				NumberSequenceKeypoint.new(0.5, 0.35),
+				NumberSequenceKeypoint.new(1, 1),
+			}),
+			Parent = ray,
+		})
+		table.insert(rayList, ray)
+	end
+
 	-- the new pet, spinning
 	local viewport, model = Ui.petViewport(petName, {
 		AnchorPoint = Vector2.new(0.5, 0.5),
@@ -97,12 +129,15 @@ local function playHatch(petName: string, eggIndex: number)
 	})
 	local spin = RunService.RenderStepped:Connect(function(dt)
 		model:PivotTo(model:GetPivot() * CFrame.Angles(0, dt * 2, 0))
+		for _, ray in rayList do
+			ray.Rotation += dt * 40
+		end
 	end)
 
 	local text = Ui.label({
 		AnchorPoint = Vector2.new(0.5, 0),
 		Position = UDim2.new(0.5, 0, 0.45, 140),
-		Size = UDim2.fromOffset(500, 44),
+		Size = UDim2.fromOffset(500, 50),
 		Text = petName,
 		TextColor3 = rarityColor,
 		Parent = dim,

@@ -272,15 +272,16 @@ local function updatePlayer(player: Player, state: State, dt: number, now: numbe
 
 	for i, following in state.Following do
 		local model = following.Model
-		local current = model:GetPivot()
+		local body = model.PrimaryPart :: BasePart
+		local current = body.CFrame
 		local goal: CFrame
 
 		if target then
 			-- circle around the blob and hop on it
 			local angle = (i / count) * math.pi * 2
-			local radius = target.Size.X / 2 + 1.2
+			local radius = target.Size.X / 2 + 1.4
 			local hop = math.abs(math.sin(now * 8 + i)) * 1.2
-			local spot = target.Position + Vector3.new(math.cos(angle) * radius, -target.Size.Y / 2 + 1.3 + hop, math.sin(angle) * radius)
+			local spot = target.Position + Vector3.new(math.cos(angle) * radius, -target.Size.Y / 2 + 1.25 + hop, math.sin(angle) * radius)
 			goal = CFrame.lookAt(spot, Vector3.new(target.Position.X, spot.Y, target.Position.Z))
 			if (current.Position - spot).Magnitude < 4 then
 				petsAtTarget += 1
@@ -291,14 +292,16 @@ local function updatePlayer(player: Player, state: State, dt: number, now: numbe
 			local spread = (i - (count + 1) / 2) * 3.5
 			local bob = math.sin(now * 4 + i) * 0.3
 			local flat = CFrame.new(root.Position) * CFrame.Angles(0, select(2, root.CFrame:ToEulerAnglesYXZ()), 0)
-			local spot = (flat * CFrame.new(spread, -1.7 + bob, 6 + math.abs(spread) * 0.3)).Position
-			goal = CFrame.lookAt(spot, spot + root.CFrame.LookVector)
+			local spot = (flat * CFrame.new(spread, -1.8 + bob, 6 + math.abs(spread) * 0.3)).Position
+			local wobble = math.sin(now * 6 + i) * 0.08 -- jiggly waddle
+			goal = CFrame.lookAt(spot, spot + root.CFrame.LookVector) * CFrame.Angles(0, 0, wobble)
 		end
 
 		if (current.Position - goal.Position).Magnitude > 100 then
-			model:PivotTo(goal) -- too far, just teleport
+			body.CFrame = goal -- too far, just teleport
 		else
-			model:PivotTo(current:Lerp(goal, alpha))
+			-- only the body moves; every other part is welded to it
+			body.CFrame = current:Lerp(goal, alpha)
 		end
 	end
 
