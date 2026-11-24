@@ -31,6 +31,7 @@ export type PuddingOptions = {
 	Rarity: string?, -- adds glow, sparkles and a halo for rare ones
 	Scale: number?, -- 1 = pet size (about 3 studs tall)
 	Transparency: number?,
+	Opaque: boolean?, -- true = solid glossy candy jelly (pets), false = see-through jelly
 }
 
 -- Makes a part shaped like a ball or an egg (a "sphere mesh" stretched to the part's size).
@@ -118,8 +119,8 @@ end
 -- The face sits on a smooth egg-shaped bump on the front of the jelly.
 -- These numbers describe that bump (at Scale 1).
 local FACE_Y = 0.3 -- height of the bump's center
-local PLATE_Z = -1.1 -- how far forward its center is
-local PLATE_A, PLATE_B, PLATE_C = 1.1, 1.0, 0.45 -- half its width, height and depth
+local PLATE_Z = -1.2 -- how far forward its center is
+local PLATE_A, PLATE_B, PLATE_C = 1.1, 1.0, 0.3 -- half its width, height and depth (flat-ish, so the face lies on it)
 
 -- How far forward the bump's surface is at a spot (x, y) on the front.
 local function surfaceZ(x: number, y: number): number
@@ -154,7 +155,7 @@ local function drawFace(canvas: BasePart)
 	end
 
 	for _, x in { 0.27, 0.73 } do
-		local eye = shape("Eye", x, 0.3, 0.13, 0.22, BLACK)
+		local eye = shape("Eye", x, 0.3, 0.15, 0.26, BLACK)
 		local shine = shape("Shine", 0.35, 0.3, 0.35, 0.3, WHITE)
 		shine.Parent = eye
 		shape("Blush", x + (x - 0.5) * 0.75, 0.55, 0.2, 0.1, Color3.fromRGB(255, 110, 150), 0.35)
@@ -190,7 +191,9 @@ end
 -- Builds a jelly pudding. Used for pets (with a face) and for the big jelly blobs.
 function PetModels.Pudding(options: PuddingOptions): Model
 	local s = options.Scale or 1
-	local jellyT = options.Transparency or 0.3
+	local jellyT = if options.Opaque then 0 else options.Transparency or 0.3
+	-- solid pets are smooth and shiny like candy; see-through ones are glassy jelly
+	local jellyMaterial = if options.Opaque then PLASTIC else GLASS
 	local colors = options.Colors or { options.Color }
 
 	local model = Instance.new("Model")
@@ -204,7 +207,7 @@ function PetModels.Pudding(options: PuddingOptions): Model
 	end
 
 	-- the jelly core
-	local body = blob(model, "Body", v(2.6, 2.3, 2.6), options.Color, CFrame.new(), GLASS, jellyT + 0.05)
+	local body = blob(model, "Body", v(2.6, 2.3, 2.6), options.Color, CFrame.new(), jellyMaterial, if options.Opaque then 0 else jellyT + 0.05)
 	model.PrimaryPart = body
 
 	-- ridges going up the sides, leaning in at the top like a pudding mold,
@@ -216,14 +219,14 @@ function PetModels.Pudding(options: PuddingOptions): Model
 		local color = colors[(i - 1) % #colors + 1]
 
 		local ridgePos = dir * 1.05 * s + Vector3.new(0, -0.05 * s, 0)
-		blob(model, "Ridge", v(0.95, 2.3, 0.95), color, CFrame.lookAt(ridgePos, ridgePos + dir) * CFrame.Angles(math.rad(12), 0, 0), GLASS, jellyT)
+		blob(model, "Ridge", v(0.95, 2.3, 0.95), color, CFrame.lookAt(ridgePos, ridgePos + dir) * CFrame.Angles(math.rad(12), 0, 0), jellyMaterial, jellyT)
 
 		local skirtPos = dir * 1.38 * s + Vector3.new(0, -0.85 * s, 0)
-		blob(model, "Skirt", v(1.15, 0.7, 1), color, CFrame.lookAt(skirtPos, skirtPos + dir), GLASS, jellyT)
+		blob(model, "Skirt", v(1.15, 0.7, 1), color, CFrame.lookAt(skirtPos, skirtPos + dir), jellyMaterial, jellyT)
 	end
 
 	-- the flat-ish top of the jelly
-	blob(model, "Top", v(1.9, 0.7, 1.9), colors[1], at(0, 1.05, 0), GLASS, jellyT)
+	blob(model, "Top", v(1.9, 0.7, 1.9), colors[1], at(0, 1.05, 0), jellyMaterial, jellyT)
 
 	-- shiny reflections make it look wet and squishy
 	blob(model, "Shine", v(0.28, 0.9, 0.12), WHITE, at(-1.0, 0.65, -1.25) * CFrame.Angles(0, math.rad(-40), math.rad(12)), NEON, 0.35)
@@ -250,18 +253,27 @@ function PetModels.Pudding(options: PuddingOptions): Model
 		local spots = { { -0.5, -0.3, -0.6 }, { 0.6, 0.1, -0.4 }, { 0.1, -0.6, 0.6 }, { -0.4, 0.5, 0.3 }, { 0.5, -0.5, 0.2 }, { -0.1, 0.2, -0.9 } }
 		local starColors = { Color3.fromRGB(255, 255, 200), Color3.fromRGB(200, 230, 255), Color3.fromRGB(255, 210, 240) }
 		for i, spot in spots do
-			block(model, "Glitter", v(0.2, 0.2, 0.2), starColors[(i - 1) % #starColors + 1], at(spot[1], spot[2], spot[3]) * CFrame.Angles(0, 0, math.rad(45)), NEON)
+			local x, y, z = spot[1], spot[2], spot[3]
+			if options.Opaque then
+				-- solid jelly: put the glitter on the outside so you can see it
+				local out = Vector3.new(x, y * 0.8, z).Unit * 1.45
+				x, y, z = out.X, out.Y, out.Z
+				if z < -0.9 and math.abs(x) < 0.9 then
+					z = -z -- keep the face clear
+				end
+			end
+			block(model, "Glitter", v(0.16, 0.16, 0.16), starColors[(i - 1) % #starColors + 1], at(x, y, z) * CFrame.Angles(0, 0, math.rad(45)), NEON)
 		end
 	end
 
 	-- the cute face: dot eyes, blush and an "ω" mouth
 	if options.Face or options.DrawnFace then
 		-- a smooth jelly bump on the front, so the face sits on a smooth surface
-		blob(model, "FacePlate", v(PLATE_A * 2, PLATE_B * 2, PLATE_C * 2), colors[1], at(0, FACE_Y, PLATE_Z), GLASS, jellyT)
+		blob(model, "FacePlate", v(PLATE_A * 2, PLATE_B * 2, PLATE_C * 2), colors[1], at(0, FACE_Y, PLATE_Z), jellyMaterial, jellyT)
 
 		if options.DrawnFace then
 			-- drawn on a flat see-through sheet stuck to the front (looks crisp in the game)
-			local canvas = block(model, "FaceCanvas", v(1.6, 1.2, 0.05), WHITE, at(0, FACE_Y + 0.05, surfaceZ(0, FACE_Y) - 0.01))
+			local canvas = block(model, "FaceCanvas", v(1.6, 1.2, 0.05), WHITE, at(0, FACE_Y + 0.05, surfaceZ(0, FACE_Y) - 0.005))
 			canvas.Transparency = 1
 			drawFace(canvas)
 		else
@@ -349,6 +361,7 @@ function PetModels.Build(petName: string, scale: number?, drawnFace: boolean?): 
 		Stars = info.Stars,
 		Face = not drawnFace,
 		DrawnFace = drawnFace,
+		Opaque = true,
 		Rarity = info.Rarity,
 		Scale = scale,
 	})
