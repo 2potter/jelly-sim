@@ -7,11 +7,11 @@
 
 	How a pet moves:
 	  - it always stands on the ground (a ray finds the floor under it)
-	  - it walks by hopping: squash down, stretch up into the air, splat on landing
-	  - landing makes it jiggle like jelly (a "spring" on its squash)
+	  - it glides smoothly after you with a soft little waddle
 	  - standing still, it gently breathes up and down
-	  - when its owner jumps, all the pets jump too
+	  - when its owner jumps, all the pets jump too and jiggle when they land
 	  - when attacking a blob, it hops on the spot next to it
+	  - its name floats above it in its rarity color
 
 	Tweak the numbers below to change how pets feel!
 ]]
@@ -20,19 +20,22 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 
+local Config = require(ReplicatedStorage.Shared.Config)
 local PetModels = require(ReplicatedStorage.Shared.PetModels)
 
 local PET_SCALE = 1.25 -- how big pets are
 local SPACING = 4.4 -- space between pets walking behind you
 local FOLLOW_DISTANCE = 6.5 -- how far behind you they walk
 local RUN_SPEED = 36 -- fastest a pet can move (studs per second)
+local SMOOTHING = 7 -- how quickly pets speed up and slow down (lower = smoother)
+local WADDLE_HEIGHT = 0.25 -- how much pets bob while walking
+local WADDLE_SQUISH = 0.03 -- how much pets squish while walking
 local GRAVITY = 95
-local HOP_SPEED = 15 -- upward speed of a walking hop
-local ATTACK_HOP_SPEED = 19 -- upward speed of an attack hop
-local JUMP_SPEED = 33 -- upward speed when the owner jumps
-local LAND_PAUSE = 0.06 -- tiny pause on landing so you can see the squish
-local SPRING = 280 -- how stiff the jelly is (higher = faster wobble)
-local DAMPING = 10 -- how quickly the wobble calms down (lower = wobblier)
+local ATTACK_HOP_SPEED = 14 -- upward speed of an attack hop
+local JUMP_SPEED = 30 -- upward speed when the owner jumps
+local LAND_PAUSE = 0.1 -- tiny pause between attack hops
+local SPRING = 220 -- how stiff the jelly is (higher = faster wobble)
+local DAMPING = 14 -- how quickly the wobble calms down (lower = wobblier)
 local TELEPORT_DISTANCE = 90 -- pets further away than this just appear next to you
 
 local BOTTOM = PetModels.BottomOffset * PET_SCALE
@@ -48,6 +51,8 @@ type Pet = {
 	Infos: { PartInfo },
 	CFrames: { CFrame },
 	Position: Vector3, -- the spot on the ground under the pet
+	Velocity: Vector3, -- how fast it's sliding along the ground
+	WalkPhase: number, -- where it is in its waddle
 	GroundY: number,
 	Height: number, -- how high it is in the air
 	VelocityY: number,
@@ -89,7 +94,7 @@ local function setPose(pet: Pet, base: CFrame, stretch: number, squeeze: number)
 end
 
 local function buildPet(petName: string, position: Vector3): Pet?
-	local ok, model = pcall(PetModels.Build, petName, PET_SCALE)
+	local ok, model = pcall(PetModels.Build, petName, PET_SCALE, true)
 	if not ok then
 		warn("[JellySim] Couldn't build pet " .. tostring(petName))
 		return nil
@@ -103,6 +108,8 @@ local function buildPet(petName: string, position: Vector3): Pet?
 		Infos = {},
 		CFrames = {},
 		Position = position,
+		Velocity = Vector3.zero,
+		WalkPhase = 0,
 		GroundY = position.Y,
 		Height = 0,
 		VelocityY = 0,
@@ -129,6 +136,39 @@ local function buildPet(petName: string, position: Vector3): Pet?
 			})
 		end
 	end
+
+	-- name tag floating above the pet
+	local info = Config.Pets[petName]
+	local tag = Instance.new("BillboardGui")
+	tag.Name = "NameTag"
+	tag.Size = UDim2.fromOffset(140, 34)
+	tag.StudsOffset = Vector3.new(0, 2.6 * PET_SCALE, 0)
+	tag.MaxDistance = 45
+	tag.LightInfluence = 0
+	local name = Instance.new("TextLabel")
+	name.Size = UDim2.fromScale(1, 0.6)
+	name.BackgroundTransparency = 1
+	name.Text = petName
+	name.TextScaled = true
+	name.Font = Enum.Font.FredokaOne
+	name.TextColor3 = Color3.new(1, 1, 1)
+	name.Parent = tag
+	local rarity = Instance.new("TextLabel")
+	rarity.Position = UDim2.fromScale(0, 0.6)
+	rarity.Size = UDim2.fromScale(1, 0.4)
+	rarity.BackgroundTransparency = 1
+	rarity.Text = if info then info.Rarity else ""
+	rarity.TextScaled = true
+	rarity.Font = Enum.Font.FredokaOne
+	rarity.TextColor3 = if info then Config.RarityColors[info.Rarity] else Color3.new(1, 1, 1)
+	rarity.Parent = tag
+	for _, label in { name, rarity } do
+		local stroke = Instance.new("UIStroke")
+		stroke.Color = Color3.fromRGB(50, 25, 70)
+		stroke.Thickness = 2
+		stroke.Parent = label
+	end
+	tag.Parent = model.PrimaryPart
 
 	setPose(pet, CFrame.new(position), 1, 1)
 	model.Parent = folder
@@ -244,57 +284,56 @@ local function updatePet(pet: Pet, index: number, count: number, root: BasePart,
 		goal = (behind * CFrame.new(spread, 0, FOLLOW_DISTANCE + math.abs(spread) * 0.35)).Position
 	end
 
-	-- walk there
+	-- glide there smoothly: speed up and slow down gently
 	local offset = Vector3.new(goal.X - pet.Position.X, 0, goal.Z - pet.Position.Z)
 	local distance = offset.Magnitude
 	if distance > TELEPORT_DISTANCE then
 		pet.Position = Vector3.new(goal.X, root.Position.Y - 3, goal.Z)
 		pet.GroundY = root.Position.Y - 3
+		pet.Velocity = Vector3.zero
 		offset = Vector3.zero
 		distance = 0
 	end
-	local moving = distance > 0.8
+	local wantedVelocity = Vector3.zero
+	if distance > 0.3 then
+		local speed = math.min(distance * 3, RUN_SPEED) -- hurry when far behind, ease in when close
+		wantedVelocity = offset.Unit * speed
+	end
+	pet.Velocity = pet.Velocity:Lerp(wantedVelocity, math.min(1, dt * SMOOTHING))
+	pet.Position += pet.Velocity * dt
+
+	local speed = pet.Velocity.Magnitude
+	local moving = speed > 1.5
 	local desiredYaw = ownerYaw
 	if moving then
-		local speed = math.clamp(distance * 5, 10, RUN_SPEED) -- hurry when far behind
-		-- pets only move forward while hopping, like real jumpy jellies
-		if not pet.Grounded then
-			pet.Position += offset.Unit * math.min(distance, speed * dt)
-		end
-		desiredYaw = yawToward(offset)
+		desiredYaw = yawToward(pet.Velocity)
 	elseif target then
 		desiredYaw = yawToward(target.Position - pet.Position)
 	end
-	pet.Yaw = turnToward(pet.Yaw, desiredYaw, math.min(1, dt * 12))
+	pet.Yaw = turnToward(pet.Yaw, desiredYaw, math.min(1, dt * 8))
 
 	-- stick to the ground (smoothly, so steps don't snap)
 	local ground = groundHeight(pet.Position.X, pet.Position.Z, math.max(root.Position.Y, pet.GroundY), root.Position.Y - 3)
 	pet.GroundY += (ground - pet.GroundY) * math.min(1, dt * 18)
 
-	-- hopping and jumping
-	local attacking = target ~= nil and not moving
+	-- jumping with the owner, and little hops while attacking
+	local attacking = target ~= nil and distance < 1.5
 	if pet.Grounded and now - pet.LandedAt > LAND_PAUSE then
 		if pet.JumpAt and now >= pet.JumpAt then
 			pet.VelocityY = JUMP_SPEED
 			pet.Grounded = false
 			pet.JumpAt = nil
-		elseif moving then
-			pet.VelocityY = HOP_SPEED
-			pet.Grounded = false
 		elseif attacking then
 			pet.VelocityY = ATTACK_HOP_SPEED
 			pet.Grounded = false
-		end
-		if not pet.Grounded then
-			pet.SquashVelocity += 4 -- spring up out of the squish
 		end
 	end
 	if not pet.Grounded then
 		pet.VelocityY -= GRAVITY * dt
 		pet.Height += pet.VelocityY * dt
 		if pet.Height <= 0 then
-			-- SPLAT! the harder it lands, the bigger the jiggle
-			pet.SquashVelocity -= math.min(math.abs(pet.VelocityY) * 0.25, 8)
+			-- land with a soft jelly wobble
+			pet.SquashVelocity -= math.min(math.abs(pet.VelocityY) * 0.15, 4)
 			pet.Height = 0
 			pet.VelocityY = 0
 			pet.Grounded = true
@@ -302,27 +341,32 @@ local function updatePet(pet: Pet, index: number, count: number, root: BasePart,
 		end
 	end
 
+	-- a soft waddle while walking: tiny bob and squish, faster when running
+	local walkAmount = math.clamp(speed / 12, 0, 1)
+	pet.WalkPhase += dt * (6 + speed * 0.25)
+	local waddle = math.abs(math.sin(pet.WalkPhase)) * WADDLE_HEIGHT * walkAmount
+
 	-- jelly spring: squash and stretch
 	local squashGoal
 	if not pet.Grounded then
-		squashGoal = math.clamp(math.abs(pet.VelocityY) / JUMP_SPEED * 0.22, 0, 0.2) -- stretch while flying
-	elseif moving or attacking then
-		squashGoal = -0.1 -- crouch, getting ready for the next hop
+		squashGoal = math.clamp(math.abs(pet.VelocityY) / JUMP_SPEED * 0.15, 0, 0.12) -- stretch while flying
+	elseif moving then
+		squashGoal = math.sin(pet.WalkPhase * 2) * WADDLE_SQUISH * walkAmount
 	else
-		squashGoal = math.sin(now * 3 + pet.Seed) * 0.035 -- gentle breathing
+		squashGoal = math.sin(now * 3 + pet.Seed) * 0.03 -- gentle breathing
 	end
 	local accel = -SPRING * (pet.Squash - squashGoal) - DAMPING * pet.SquashVelocity
 	pet.SquashVelocity += accel * dt
-	pet.Squash = math.clamp(pet.Squash + pet.SquashVelocity * dt, -0.35, 0.35)
+	pet.Squash = math.clamp(pet.Squash + pet.SquashVelocity * dt, -0.25, 0.25)
 
-	-- lean forward while hopping along, wobble a tiny bit when idle
-	local pitchGoal = if moving and not pet.Grounded then -0.14 else 0
-	pet.Pitch += (pitchGoal - pet.Pitch) * math.min(1, dt * 10)
-	local roll = if moving then 0 else math.sin(now * 2 + pet.Seed) * 0.03
+	-- lean a little into the walk, sway gently side to side
+	local pitchGoal = -0.08 * walkAmount
+	pet.Pitch += (pitchGoal - pet.Pitch) * math.min(1, dt * 6)
+	local roll = if moving then math.sin(pet.WalkPhase) * 0.05 * walkAmount else math.sin(now * 2 + pet.Seed) * 0.025
 
 	local stretch = 1 + pet.Squash
 	local squeeze = 1 - pet.Squash * 0.55 -- jelly gets wider when it squishes
-	local base = CFrame.new(pet.Position.X, pet.GroundY + pet.Height, pet.Position.Z)
+	local base = CFrame.new(pet.Position.X, pet.GroundY + pet.Height + waddle, pet.Position.Z)
 		* CFrame.Angles(0, pet.Yaw, 0)
 		* CFrame.Angles(pet.Pitch, 0, roll)
 	setPose(pet, base, stretch, squeeze)
