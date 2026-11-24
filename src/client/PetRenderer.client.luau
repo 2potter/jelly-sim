@@ -65,6 +65,7 @@ type Pet = {
 	Yaw: number,
 	Pitch: number,
 	Seed: number,
+	Warned: boolean?,
 }
 type Owner = { Pets: { Pet }, Names: string, LastVelocityY: number }
 
@@ -96,7 +97,12 @@ end
 local function buildPet(petName: string, position: Vector3): Pet?
 	local ok, model = pcall(PetModels.Build, petName, PET_SCALE, true)
 	if not ok then
-		warn("[JellySim] Couldn't build pet " .. tostring(petName))
+		-- if the drawn face breaks, use the face made of parts instead
+		warn("[JellySim] Pet with drawn face failed, using simple face: " .. tostring(model))
+		ok, model = pcall(PetModels.Build, petName, PET_SCALE, false)
+	end
+	if not ok then
+		warn("[JellySim] Couldn't build pet " .. tostring(petName) .. ": " .. tostring(model))
 		return nil
 	end
 
@@ -399,7 +405,24 @@ RunService.RenderStepped:Connect(function(frameTime)
 			local ownerYaw = select(2, root.CFrame:ToEulerAnglesYXZ())
 			local count = #owner.Pets
 			for i, pet in owner.Pets do
-				updatePet(pet, i, count, root, target, ownerYaw, dt, now)
+				local ok, err = pcall(updatePet, pet, i, count, root, target, ownerYaw, dt, now)
+				-- if anything went wrong (or the pet got lost), put it back next to its owner
+				local spot = pet.Position
+				if not ok or spot.X ~= spot.X or spot.Y ~= spot.Y or spot.Z ~= spot.Z then
+					if not ok and not pet.Warned then
+						pet.Warned = true
+						warn("[JellySim] Pet animation error: " .. tostring(err))
+					end
+					pet.Position = root.Position - Vector3.new(0, 3, 0)
+					pet.GroundY = root.Position.Y - 3
+					pet.Velocity = Vector3.zero
+					pet.Height = 0
+					pet.VelocityY = 0
+					pet.Grounded = true
+					pet.Squash = 0
+					pet.SquashVelocity = 0
+					pcall(setPose, pet, CFrame.new(pet.Position.X, pet.GroundY, pet.Position.Z), 1, 1)
+				end
 			end
 		end
 	end
